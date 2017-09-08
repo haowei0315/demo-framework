@@ -1,0 +1,110 @@
+<!-- <?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xmlns:context="http://www.springframework.org/schema/context"
+     xsi:schemaLocation="http://www.springframework.org/schema/beans
+         http://www.springframework.org/schema/beans/spring-beans.xsd
+         http://www.springframework.org/schema/context
+         http://www.springframework.org/schema/context/spring-context.xsd">
+    
+     <context:property-placeholder location="classpath:init.properties" />
+
+	定义consumer的参数
+     <bean id="consumerProperties" class="java.util.HashMap">
+     	<constructor-arg>
+     		<map>
+		     	<entry key="bootstrap.servers" value="${bootstrap.servers}"/>
+		     	 <entry key="zookeeper.connect" value="${zookeeper.servers}"/>
+		     	 <entry key="zookeeper.session.timeout.ms" value="400"/>
+		     	 <entry key="zookeeper.sync.time.ms" value="200"/>
+		     	<entry key="group.id" value="0"/>
+		     	<entry key="enable.auto.commit" value="true"/>
+		     	<entry key="auto.commit.interval.ms" value="1000"/>
+		     	<entry key="session.timeout.ms" value="15000"/>
+		     	<entry key="key.deserializer" value="org.apache.kafka.common.serialization.IntegerDeserializer"/>
+		     	<entry key="value.deserializer" value="org.apache.kafka.common.serialization.StringDeserializer"/>
+     		</map>
+     	</constructor-arg>
+     </bean>
+     
+     创建consumerFactory bean
+     <bean id="consumerFactory" class="org.springframework.kafka.core.DefaultKafkaConsumerFactory">
+     	<constructor-arg>
+     		<ref bean="consumerProperties"/>
+     	</constructor-arg>
+     </bean>
+     
+     实际执行消息消费的类
+     <bean id="messageListernerConsumerService" class="com.anxin.cloud.web.kafka.KafkaConsumer"/>
+     
+     消费者容器配置信息
+     <bean id="containerProperties" class="org.springframework.kafka.listener.config.ContainerProperties">
+     	<constructor-arg value="test_replicated_topic" />
+     	<constructor-arg >
+     	 	<array>
+				<value>test_replicated_topic</value>
+			</array>
+     	</constructor-arg>
+     	<property name="messageListener" ref="messageListernerConsumerService"/>
+     </bean>
+     
+     创建kafkatemplate bean，使用的时候，只需要注入这个bean，即可使用template的send消息方法
+     <bean id="messageListenerContainer" class="org.springframework.kafka.listener.KafkaMessageListenerContainer" init-method="doStart">
+     	<constructor-arg ref="consumerFactory"/>
+     	<constructor-arg ref="containerProperties"/>
+     </bean>
+
+</beans> -->
+
+
+<!--?xml version="1.0" encoding="UTF-8"?-->
+<beans xmlns="http://www.springframework.org/schema/beans" xmlns:int="http://www.springframework.org/schema/integration" xmlns:int-kafka="http://www.springframework.org/schema/integration/kafka" xmlns:task="http://www.springframework.org/schema/task" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemalocation="http://www.springframework.org/schema/integration/kafka 
+                        http://www.springframework.org/schema/integration/kafka/spring-integration-kafka.xsd
+                        http://www.springframework.org/schema/integration 
+                        http://www.springframework.org/schema/integration/spring-integration.xsd
+                        http://www.springframework.org/schema/beans 
+                        http://www.springframework.org/schema/beans/spring-beans.xsd
+                        http://www.springframework.org/schema/task 
+                        http://www.springframework.org/schema/task/spring-task.xsd">
+ 
+    <!-- 接收的频道 也可以理解为接收的工具类 -->
+    <int:channel id="inputFromKafka">
+        <int:dispatcher task-executor="kafkaMessageExecutor">
+    </int:dispatcher></int:channel>
+    <!-- zookeeper配置 可以配置多个 -->
+    <int-kafka:zookeeper-connect id="zookeeperConnect" zk-connect="node-1:2181,node-2:2181,node-3:2181" zk-connection-timeout="6000" zk-session-timeout="6000" zk-sync-time="2000">
+    <!-- channel配置 auto-startup="true" 否则接收不发数据 -->
+    <int-kafka:inbound-channel-adapter auto-startup="true" channel="inputFromKafka" id="kafkaInboundChannelAdapter" kafka-consumer-context-ref="consumerContext">
+        <int:poller fixed-delay="1" time-unit="MILLISECONDS">
+    </int:poller></int-kafka:inbound-channel-adapter>
+    <task:executor id="kafkaMessageExecutor" keep-alive="120" pool-size="8" queue-capacity="500">
+    <!-- <bean id="kafkaDecoder" class="org.springframework.integration.kafka.serializer.common.StringDecoder" /> -->
+ 
+    <bean class="org.apache.kafka.common.serialization.IntegerDeserializer" id="kafkaDecoder">
+    
+    <bean class="org.springframework.beans.factory.config.PropertiesFactoryBean" id="consumerProperties">
+        <property name="properties">
+            <props>
+                <prop key="auto.offset.reset">smallest</prop>
+                <prop key="socket.receive.buffer.bytes">10485760</prop> <!-- 10M -->
+                <prop key="fetch.message.max.bytes">5242880</prop>
+                <prop key="auto.commit.interval.ms">1000</prop>
+            </props>
+        </property>
+    </bean>
+    <!-- 消息接收的BEEN -->
+    <bean class="com.anxin.cloud.web.kafka.NewKafkaConsumer" id="kafkaConsumerService">
+    <!-- 指定接收的方法 -->
+    <int:outbound-channel-adapter channel="inputFromKafka" method="processMessage" ref="kafkaConsumerService">
+ 
+    <int-kafka:consumer-context consumer-properties="consumerProperties" consumer-timeout="1000" id="consumerContext" zookeeper-connect="zookeeperConnect">
+        <int-kafka:consumer-configurations>
+            <int-kafka:consumer-configuration group-id="default1" key-decoder="org.apache.kafka.common.serialization.IntegerDeserializer" 
+            max-messages="5000" value-decoder="org.apache.kafka.common.serialization.StringDeserializer">
+                <!-- 两个TOPIC配置 -->
+                <int-kafka:topic id="myTopic" streams="4">
+                <int-kafka:topic id="test_replicated_topic" streams="4">
+            </int-kafka:topic></int-kafka:topic></int-kafka:consumer-configuration>
+        </int-kafka:consumer-configurations>
+    </int-kafka:consumer-context>
+</int:outbound-channel-adapter></bean></bean></task:executor></int-kafka:zookeeper-connect></beans>

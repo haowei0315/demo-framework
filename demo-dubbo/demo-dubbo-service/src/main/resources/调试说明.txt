@@ -1,0 +1,4 @@
+1. 在当前用户目录下建立文件dubbo-resolve.properties，如C:\Users\Administrator
+
+2.在该文件中添加对应的接口，如：
+com.anxin.cloud.demo.dubbo.facade.IIcbcQueryFacade=dubbo://localhost:20881

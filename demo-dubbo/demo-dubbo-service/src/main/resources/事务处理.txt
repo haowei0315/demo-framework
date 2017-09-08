@@ -1,0 +1,58 @@
+1. 应尽量避免分布式事务，即一个接口或者一个方法中尽量只有一边做数据库的更新操作，其它接口调用只做查询，
+即不能在一个方法中多次调用dubbo的service数据库更新接口，只能调用一个dubbo的service数据库更新接口；
+
+2. 在实际中，可以在一个方法中有且只能做二次数据库的更新操作，即本地方法数据库更新操作+dubbo service数据库更新接口，
+如：在消费端方法中，可以把本地方法的更新操作写在前面，把dubbo service接口的更新操作写在最后面。
+如：
+ 本地方法（消费端）：
+	@Transactional
+	public Object processBusiness(String refCode){
+		
+		AntiWord antiWord = new AntiWord();
+		antiWord.setWord("biz business");
+		antiWord.setCreateTime(new Date());
+		antiWordService.create(antiWord);
+		
+		Tag tag = new Tag();
+		tag.setTagDtls("biz business");
+		tag.setCreateTime(new Date());
+		tagService.create(tag);
+		
+		//if(true)
+				//	throw new BaseException("biz exception");
+	
+		Map<String, Object> queryByRefCode = icbcQueryFacade.queryByRefCode(refCode);
+		System.err.println(queryByRefCode);
+		
+		return queryByRefCode;
+	}
+	
+	dubbo service接口：
+	@Transactional
+	@Override
+	public Map<String, Object> queryByRefCode(String refCode) {
+		HashMap<String, Object> map = new HashMap<String, Object>();
+		// XXX
+		map.put("name", "张三");
+		map.put("loanAmount", BigDecimal.valueOf(123.345));
+		map.put("flag", true);
+
+		System.err.println("调用中。。。。");
+		
+		AntiWord antiWord = new AntiWord();
+		antiWord.setWord("dubbo service");
+		antiWord.setCreateTime(new Date());
+		antiWordService.create(antiWord);
+		
+		
+		
+		AssnMessage assnMessage = new  AssnMessage();
+		assnMessage.setMsgTitle("dubbo service");
+		assnMessage.setCreateTime(new Date());
+		assnMessageService.create(assnMessage);
+		
+		//if(true)
+			//throw new BaseException("asdasdasdasd");
+		
+		return map;
+	}
